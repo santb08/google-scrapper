@@ -2,6 +2,7 @@ from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 from playwright.sync_api import sync_playwright
 import click
+import time
 import base64
 import io
 import os
@@ -11,10 +12,8 @@ import re
 
 INPUT_SELECTOR = 'input[name="q"]'
 IMAGE_SELECTOR = '.rg_i'
+FINAL_IMAGE_SELECTOR = 'img[jsname="HiaYvf"]'
 GOOGLE_IMAGES_URL = 'https://images.google.com/'
-
-READY_STATE = 'div[data-status="5"]'
-LOADING_STATE = 'div[data-status="1"]'
 END_OF_RESULTS_STATE = 'div[data-status="3"]'
 result = []
 
@@ -29,14 +28,10 @@ def img_down(path, image_data):
 
     if image_data['base64']:
       print('Base 64')
-      # image = base64.urlsafe_b64decode(url)
-      # image = Image.open(image)
       url = re.sub('^data:image/.+;base64,', '', url)
-      print(url)
       image= Image.open(io.BytesIO(base64.urlsafe_b64decode(url)))
 
     else:
-      # return
       response  = requests.get(url).content
       image_file = io.BytesIO(response)
       image  = Image.open(image_file)
@@ -66,9 +61,10 @@ def scrap_images(query, limit):
     input.press('Enter')
 
     # Get all results from Google
-    while not page.locator(END_OF_RESULTS_STATE).is_visible() and len(page.query_selector_all('.rg_i')) < limit:
+    while not page.locator(END_OF_RESULTS_STATE).is_visible() and len(page.query_selector_all(IMAGE_SELECTOR)) < limit:
       page.mouse.wheel(0, 600)
 
+      # Other options for fetching more images
       load_more_results = page.locator('.r0zKGf')
       if load_more_results.is_visible():
         load_more_results.click()
@@ -77,12 +73,15 @@ def scrap_images(query, limit):
       if show_more_results.is_visible():
         show_more_results.click()
 
-    images = page.query_selector_all('.rg_i')[0:limit]
+    images = page.query_selector_all(IMAGE_SELECTOR)[0:limit]
 
     for index in range(len(images)):
-      img = images[index]
-      image_url = img.get_attribute('src') or img.get_attribute('data-src')
+      images[index].click()
 
+      img = page.locator(FINAL_IMAGE_SELECTOR).nth(1)
+      image_url = img.get_attribute('src') or img.get_attribute('data-src')
+      time.sleep(.5)
+      image_url = img.get_attribute('src') or img.get_attribute('data-src')
       image_data = {
         'alt': img.get_attribute('alt'),
         'url': image_url,
